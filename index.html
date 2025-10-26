@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>城市天气预报</title>
+    <style>
+      :root {
+        font-size: 16px;
+        --primary-color: #2563eb;
+        --secondary-color: #1d4ed8;
+        --accent-color: #f97316;
+        --bg-gradient: radial-gradient(circle at top left, #1e3a8a, #0f172a);
+        --card-bg: rgba(15, 23, 42, 0.65);
+        --text-light: #f8fafc;
+        --text-muted: #cbd5f5;
+        --shadow-strong: 0 20px 45px rgba(15, 23, 42, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        color: var(--text-light);
+        background: var(--bg-gradient);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1.5rem;
+      }
+
+      .app-shell {
+        width: min(960px, 100%);
+        background: linear-gradient(135deg, rgba(30, 64, 175, 0.7), rgba(15, 23, 42, 0.75));
+        backdrop-filter: blur(20px);
+        border-radius: 32px;
+        padding: clamp(1.75rem, 3vw, 2.5rem);
+        box-shadow: var(--shadow-strong);
+        display: grid;
+        gap: 1.75rem;
+      }
+
+      .header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: clamp(1.75rem, 4vw, 2.75rem);
+        letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .header h1 span {
+        display: inline-flex;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.2);
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+      }
+
+      .header p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 620px;
+        line-height: 1.6;
+      }
+
+      .search-panel {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .input-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: stretch;
+      }
+
+      .input-group input[type='text'] {
+        flex: 1 1 260px;
+        padding: 0.85rem 1.2rem;
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 23, 42, 0.4);
+        color: inherit;
+        font-size: 1rem;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .input-group input[type='text']:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.65);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
+      }
+
+      .input-group button {
+        flex: 0 0 auto;
+        padding: 0.85rem 1.75rem;
+        border: none;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .input-group button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .input-group button:not(:disabled):hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(37, 99, 235, 0.45);
+      }
+
+      .result-card {
+        background: var(--card-bg);
+        border-radius: 24px;
+        padding: 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      }
+
+      .city-results {
+        display: grid;
+        gap: 0.75rem;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+
+      .city-option {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+      }
+
+      .city-option:hover,
+      .city-option.active {
+        background: rgba(59, 130, 246, 0.18);
+        border-color: rgba(59, 130, 246, 0.5);
+        transform: translateY(-1px);
+      }
+
+      .city-option small {
+        color: var(--text-muted);
+      }
+
+      .section-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        font-size: 1.05rem;
+        letter-spacing: 0.05em;
+      }
+
+      .section-title span {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .weather-display {
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      .weather-summary {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+
+      .summary-card {
+        background: rgba(15, 23, 42, 0.55);
+        border-radius: 18px;
+        padding: 1rem;
+        display: grid;
+        gap: 0.45rem;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .summary-card strong {
+        font-size: 1.15rem;
+      }
+
+      .weather-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem;
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(56, 189, 248, 0.15));
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        backdrop-filter: blur(10px);
+      }
+
+      .weather-status h2 {
+        margin: 0;
+        font-size: clamp(2.25rem, 6vw, 3.5rem);
+        letter-spacing: 0.05em;
+      }
+
+      .status-description {
+        text-align: right;
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .status-description span {
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .status-description small {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      .placeholder {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--text-muted);
+        line-height: 1.8;
+      }
+
+      .history-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .history-tag {
+        padding: 0.45rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.5);
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+
+      .history-tag:hover {
+        background: rgba(148, 163, 184, 0.15);
+        border-color: rgba(148, 163, 184, 0.55);
+      }
+
+      @media (max-width: 720px) {
+        .app-shell {
+          border-radius: 24px;
+          padding: 1.5rem;
+        }
+
+        .input-group button {
+          width: 100%;
+        }
+
+        .weather-status {
+          flex-direction: column;
+          text-align: center;
+          gap: 1rem;
+        }
+
+        .status-description {
+          text-align: center;
+        }
+      }
+
+      @media (max-width: 480px) {
+        body {
+          padding: 1rem;
+        }
+
+        .header h1 {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .weather-summary {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="header">
+        <h1>
+          城市天气预报
+          <span>Powered by QWeather</span>
+        </h1>
+        <p>
+          输入或选择城市名称，即可获取由和风天气提供的实时天气数据。我们将自动保存您的常用城市，以便随时快速查询。
+        </p>
+      </section>
+
+      <section class="search-panel result-card">
+        <div class="section-title">
+          <strong>城市搜索</strong>
+          <span id="search-status">等待输入城市名称</span>
+        </div>
+        <div class="input-group">
+          <input
+            type="text"
+            id="city-input"
+            placeholder="请输入城市中文或英文名称"
+            autocomplete="off"
+          />
+          <button id="query-btn" disabled>查询天气</button>
+        </div>
+        <div class="city-results" id="city-results"></div>
+        <div class="history-list" id="history-list"></div>
+      </section>
+
+      <section class="weather-panel result-card">
+        <div class="section-title">
+          <strong>实时天气</strong>
+          <span id="weather-update">尚未查询</span>
+        </div>
+        <div class="weather-content" id="weather-content">
+          <div class="placeholder">
+            请选择一个城市并点击“查询天气”按钮，我们将为您展示当前温度、天气状况和风力风向。
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const QWEATHER_API_HOST = 'https://api.qweather.com';
+      const CITY_LOOKUP_PATH = '/v2/city/lookup';
+      const WEATHER_NOW_PATH = '/v7/weather/now';
+      const QWEATHER_API_KEY = 'YOUR_QWEATHER_API_KEY';
+      const REQUEST_TIMEOUT = 8000;
+
+      const cityInput = document.getElementById('city-input');
+      const cityResults = document.getElementById('city-results');
+      const queryBtn = document.getElementById('query-btn');
+      const weatherContent = document.getElementById('weather-content');
+      const weatherUpdate = document.getElementById('weather-update');
+      const searchStatus = document.getElementById('search-status');
+      const historyList = document.getElementById('history-list');
+
+      let selectedCity = null;
+      let debounceTimer = null;
+      const STORAGE_KEY = 'qweather-preferred-cities';
+
+      const mockCityResponse = {
+        code: '200',
+        location: [
+          {
+            name: '北京',
+            id: '101010100',
+            country: '中国',
+            adm1: '北京市',
+            lat: '39.90499',
+            lon: '116.40528',
+          },
+        ],
+      };
+
+      const mockWeatherResponse = {
+        code: '200',
+        now: {
+          obsTime: '2024-05-01T08:00+08:00',
+          temp: '21',
+          text: '多云',
+          windDir: '东北风',
+          windScale: '3级',
+          humidity: '45',
+        },
+      };
+
+      const fetchWithTimeout = (url, options = {}) => {
+        return Promise.race([
+          fetch(url, options),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('请求超时')), REQUEST_TIMEOUT)
+          ),
+        ]);
+      };
+
+      const buildQuery = (params) =>
+        Object.entries(params)
+          .filter(([, value]) => value !== undefined && value !== null && value !== '')
+          .map((entry) => entry.map(encodeURIComponent).join('='))
+          .join('&');
+
+      const renderHistory = () => {
+        const history = getHistory();
+        historyList.innerHTML = '';
+        if (!history.length) {
+          return;
+        }
+        history.forEach((city) => {
+          const tag = document.createElement('button');
+          tag.className = 'history-tag';
+          tag.textContent = `${city.name} · ${city.adm1 || city.country || ''}`.trim();
+          tag.type = 'button';
+          tag.addEventListener('click', () => {
+            selectCity(city);
+            cityInput.value = city.name;
+            queryWeather();
+          });
+          historyList.appendChild(tag);
+        });
+      };
+
+      const saveHistory = (city) => {
+        const history = getHistory();
+        const existingIndex = history.findIndex((item) => item.id === city.id);
+        if (existingIndex > -1) {
+          history.splice(existingIndex, 1);
+        }
+        history.unshift(city);
+        const normalized = history.slice(0, 5);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        renderHistory();
+      };
+
+      const getHistory = () => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return [];
+          return JSON.parse(raw);
+        } catch (err) {
+          console.error('无法读取历史记录', err);
+          return [];
+        }
+      };
+
+      const selectCity = (city) => {
+        selectedCity = city;
+        Array.from(cityResults.children).forEach((child) =>
+          child.classList.toggle('active', child.dataset.id === city.id)
+        );
+        queryBtn.disabled = false;
+        searchStatus.textContent = `已选择：${city.name} ${city.adm1 ? '· ' + city.adm1 : ''}`;
+      };
+
+      const renderCityResults = (cities) => {
+        cityResults.innerHTML = '';
+        if (!cities.length) {
+          searchStatus.textContent = '未找到匹配的城市，尝试其他关键词';
+          return;
+        }
+        const fragment = document.createDocumentFragment();
+        cities.forEach((city) => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'city-option';
+          option.dataset.id = city.id;
+          option.innerHTML = `
+            <span>${city.name}</span>
+            <small>${[city.adm1, city.country].filter(Boolean).join(' · ')}</small>
+          `;
+          option.addEventListener('click', () => {
+            selectCity(city);
+            saveHistory(city);
+          });
+          fragment.appendChild(option);
+        });
+        cityResults.appendChild(fragment);
+        searchStatus.textContent = '从下方列表中选择一个城市';
+      };
+
+      const searchCities = async (keyword) => {
+        const query = buildQuery({
+          location: keyword,
+          key: QWEATHER_API_KEY,
+        });
+        const url = `${QWEATHER_API_HOST}${CITY_LOOKUP_PATH}?${query}`;
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) {
+            throw new Error('城市查询失败');
+          }
+          const data = await response.json();
+          if (data.code !== '200') {
+            throw new Error(data.message || '接口返回异常');
+          }
+          renderCityResults(data.location || []);
+        } catch (error) {
+          console.warn('使用模拟城市数据，原因：', error.message);
+          renderCityResults(mockCityResponse.location);
+        }
+      };
+
+      const renderWeather = (city, weather) => {
+        const { now } = weather;
+        const observedAt = now.obsTime ? new Date(now.obsTime).toLocaleString() : '刚刚';
+        weatherContent.innerHTML = `
+          <div class="weather-status">
+            <div>
+              <h2>${now.temp ?? '--'}°C</h2>
+              <div>${city.name} · ${city.adm1 || city.country || ''}</div>
+            </div>
+            <div class="status-description">
+              <span>${now.text ?? '未知天气'}</span>
+              <small>更新于：${observedAt}</small>
+            </div>
+          </div>
+          <div class="weather-summary">
+            <div class="summary-card">
+              <span>风向</span>
+              <strong>${now.windDir ?? '--'}</strong>
+            </div>
+            <div class="summary-card">
+              <span>风力</span>
+              <strong>${now.windScale ? `${now.windScale}` : '--'}</strong>
+            </div>
+            <div class="summary-card">
+              <span>湿度</span>
+              <strong>${now.humidity ? `${now.humidity}%` : '--'}</strong>
+            </div>
+          </div>
+        `;
+      };
+
+      const queryWeather = async () => {
+        if (!selectedCity) return;
+        queryBtn.disabled = true;
+        weatherUpdate.textContent = '正在获取天气数据...';
+        weatherContent.innerHTML = '<div class="placeholder">加载中，请稍候...</div>';
+
+        const query = buildQuery({
+          location: selectedCity.id,
+          key: QWEATHER_API_KEY,
+        });
+        const url = `${QWEATHER_API_HOST}${WEATHER_NOW_PATH}?${query}`;
+
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) {
+            throw new Error('天气查询失败');
+          }
+          const data = await response.json();
+          if (data.code !== '200') {
+            throw new Error(data.message || '接口返回异常');
+          }
+          renderWeather(selectedCity, data);
+          weatherUpdate.textContent = `更新于 ${new Date().toLocaleString()}`;
+        } catch (error) {
+          console.warn('使用模拟天气数据，原因：', error.message);
+          renderWeather(selectedCity, mockWeatherResponse);
+          weatherUpdate.textContent = `模拟数据 · ${new Date().toLocaleString()}`;
+        } finally {
+          queryBtn.disabled = false;
+        }
+      };
+
+      const handleInput = (event) => {
+        const value = event.target.value.trim();
+        if (!value) {
+          searchStatus.textContent = '等待输入城市名称';
+          cityResults.innerHTML = '';
+          queryBtn.disabled = !selectedCity;
+          return;
+        }
+        searchStatus.textContent = '正在搜索匹配城市...';
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(() => searchCities(value), 400);
+      };
+
+      cityInput.addEventListener('input', handleInput);
+      queryBtn.addEventListener('click', queryWeather);
+
+      const init = () => {
+        renderHistory();
+        const [first] = getHistory();
+        if (first) {
+          selectCity(first);
+          cityInput.value = first.name;
+          queryWeather();
+        }
+      };
+
+      init();
+    </script>
+  </body>
+</html>
