@@ -204,6 +204,51 @@
         background: rgba(37, 99, 235, 0.2);
       }
 
+      .history-wrapper {
+        display: none;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .history-wrapper.active {
+        display: flex;
+      }
+
+      .history-title {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+
+      .geo-panel {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.8rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+
+      .geo-panel button {
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 999px;
+        background: rgba(37, 99, 235, 0.12);
+        color: var(--brand-color);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .geo-panel button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .geo-panel button:not(:disabled):hover {
+        background: rgba(37, 99, 235, 0.2);
+        transform: translateY(-1px);
+      }
+
       .content-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -378,6 +423,12 @@
         gap: 0.4rem;
       }
 
+      .status-description img {
+        width: 60px;
+        height: 60px;
+        align-self: flex-end;
+      }
+
       .weather-summary {
         position: relative;
         z-index: 1;
@@ -400,6 +451,66 @@
       .summary-card strong {
         font-size: 1.5rem;
         color: var(--text-primary);
+      }
+
+      .forecast-section {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .forecast-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+
+      .forecast-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: var(--brand-color);
+      }
+
+      .forecast-hint {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
+
+      .forecast-grid {
+        display: grid;
+        gap: 0.9rem;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      .forecast-card {
+        background: white;
+        border-radius: 18px;
+        padding: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        display: grid;
+        gap: 0.6rem;
+        justify-items: start;
+      }
+
+      .forecast-card strong {
+        font-size: 1rem;
+        color: var(--text-primary);
+      }
+
+      .forecast-card img {
+        width: 48px;
+        height: 48px;
+      }
+
+      .forecast-temp {
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+      }
+
+      .forecast-extra {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
       }
 
       .secondary-card {
@@ -449,6 +560,11 @@
         font-size: 1rem;
       }
 
+      .placeholder.placeholder--compact {
+        padding: 1.5rem 1rem;
+        font-size: 0.9rem;
+      }
+
       @media (max-width: 720px) {
         body {
           padding: 1.5rem;
@@ -462,6 +578,10 @@
         .status-description {
           text-align: center;
           align-items: center;
+        }
+
+        .forecast-grid {
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         }
       }
 
@@ -507,6 +627,15 @@
         background: rgba(30, 41, 59, 0.85);
         border-color: rgba(148, 163, 184, 0.15);
       }
+
+      body[data-theme='night'] .forecast-card {
+        background: rgba(30, 41, 59, 0.85);
+        border-color: rgba(148, 163, 184, 0.15);
+      }
+
+      body[data-theme='night'] .forecast-hint {
+        color: rgba(148, 163, 184, 0.9);
+      }
     </style>
   </head>
   <body data-theme="default">
@@ -527,7 +656,14 @@
           <span id="searchStatus">等待输入城市名称</span>
           <span id="weatherUpdate">尚未查询</span>
         </div>
-        <div class="history-badges" id="searchHistory"></div>
+        <div class="geo-panel">
+          <button id="geoRequestBtn" type="button">使用当前位置</button>
+          <span id="geoStatus">定位功能准备中...</span>
+        </div>
+        <div class="history-wrapper" id="historyWrapper">
+          <div class="history-title">最近搜索</div>
+          <div class="history-badges" id="searchHistory"></div>
+        </div>
         <div class="city-results" id="cityResults" aria-live="polite"></div>
       </section>
 
@@ -559,20 +695,26 @@
       const QWEATHER_API_HOST = 'https://kf33jpa7j8.re.qweatherapi.com';
       const CITY_LOOKUP_PATH = '/geo/v2/city/lookup';
       const WEATHER_NOW_PATH = '/v7/weather/now';
+      const WEATHER_DAILY_PATH = '/v7/weather/7d';
       const INDICES_PATH = '/v7/indices/1d';
       const QWEATHER_API_KEY = '6eaf65e2fe1242569fd21dedb7bc43c5';
+      const WEATHER_ICON_BASE = 'https://a.hecdn.net/img/icon/64/';
 
       const cityInput = document.querySelector('#cityInput');
       const queryBtn = document.querySelector('#queryBtn');
       const searchStatus = document.querySelector('#searchStatus');
       const weatherUpdate = document.querySelector('#weatherUpdate');
       const cityResults = document.querySelector('#cityResults');
+      const historyWrapper = document.querySelector('#historyWrapper');
       const searchHistory = document.querySelector('#searchHistory');
       const weatherContent = document.querySelector('#weatherContent');
       const lifeAdvice = document.querySelector('#lifeAdvice');
       const sceneSunLayer = document.querySelector('.scene-layer--sun .scene-sun');
       const sceneCloudLayer = document.querySelector('.scene-layer--clouds');
       const scenePrecipLayer = document.querySelector('.scene-layer--precip');
+      const geoStatus = document.querySelector('#geoStatus');
+      const geoRequestBtn = document.querySelector('#geoRequestBtn');
+      const isGeoSupported = typeof navigator !== 'undefined' && 'geolocation' in navigator;
 
       let debounceTimer = null;
       let selectedCity = null;
@@ -607,6 +749,16 @@
           { type: '3', name: '穿衣指数', level: '1', category: '较舒适', text: '多备一件薄外套，早晚温差稍大。' },
           { type: '6', name: '旅游指数', level: '1', category: '适宜', text: '天气温和，适合安排城市漫步或周边短途旅行。' },
           { type: '1', name: '运动指数', level: '2', category: '较适宜', text: '适合户外运动，注意补水保持活力。' }
+        ]
+      };
+
+      const mockForecastResponse = {
+        daily: [
+          { fxDate: new Date().toISOString().slice(0, 10), textDay: '多云', textNight: '晴', tempMax: '27', tempMin: '19', iconDay: '101', iconNight: '150' },
+          { fxDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), textDay: '小雨', textNight: '小雨', tempMax: '25', tempMin: '18', iconDay: '305', iconNight: '307' },
+          { fxDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10), textDay: '晴', textNight: '多云', tempMax: '29', tempMin: '20', iconDay: '100', iconNight: '150' },
+          { fxDate: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10), textDay: '阴', textNight: '阴', tempMax: '23', tempMin: '17', iconDay: '104', iconNight: '154' },
+          { fxDate: new Date(Date.now() + 86400000 * 4).toISOString().slice(0, 10), textDay: '阵雨', textNight: '阵雨', tempMax: '24', tempMin: '18', iconDay: '300', iconNight: '350' }
         ]
       };
 
@@ -659,6 +811,9 @@
       const renderHistory = () => {
         const history = getHistory();
         searchHistory.innerHTML = '';
+        if (historyWrapper) {
+          historyWrapper.classList.toggle('active', history.length > 0);
+        }
         if (!history.length) {
           return;
         }
@@ -694,6 +849,8 @@
             cityInput.value = location.name;
             cityResults.querySelectorAll('button').forEach((button) => button.classList.remove('active'));
             option.classList.add('active');
+            searchStatus.textContent = `已选择 ${location.name}，正在获取天气...`;
+            queryWeather();
           });
           fragment.appendChild(option);
         });
@@ -753,11 +910,47 @@
         }
       };
 
-      const renderWeather = (city, weather) => {
+      const formatForecastDate = (dateString) => {
+        try {
+          const date = new Date(dateString);
+          return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' });
+        } catch (error) {
+          return dateString;
+        }
+      };
+
+      function renderForecast(daily = []) {
+        const container = weatherContent.querySelector('[data-forecast-grid]');
+        if (!container) return;
+        container.innerHTML = '';
+        const items = (daily || []).slice(0, 5);
+        if (!items.length) {
+          container.innerHTML = '<div class="placeholder placeholder--compact">暂未获取到未来预报信息，请稍后再试。</div>';
+          return;
+        }
+        const fragment = document.createDocumentFragment();
+        items.forEach((item) => {
+          const card = document.createElement('div');
+          card.className = 'forecast-card';
+          const iconCode = item.iconDay || item.iconNight;
+          const iconSrc = iconCode ? `${WEATHER_ICON_BASE}${iconCode}.png` : '';
+          card.innerHTML = `
+            <strong>${formatForecastDate(item.fxDate)}</strong>
+            ${iconSrc ? `<img src="${iconSrc}" alt="${item.textDay || item.textNight || '天气图标'}" loading="lazy" />` : ''}
+            <div class="forecast-temp">最高 ${item.tempMax ?? '--'}°C · 最低 ${item.tempMin ?? '--'}°C</div>
+            <div class="forecast-extra">白天：${item.textDay || '---'} · 夜间：${item.textNight || '---'}</div>
+          `;
+          fragment.appendChild(card);
+        });
+        container.appendChild(fragment);
+      }
+
+      function renderWeather(city, weather, forecast = []) {
         const { now } = weather;
         const observedAt = now.obsTime ? new Date(now.obsTime).toLocaleString() : '刚刚';
         const theme = mapWeatherToTheme(now.text || '', now.icon || '', now.isDay);
         applyScene(theme);
+        const iconUrl = now.icon ? `${WEATHER_ICON_BASE}${now.icon}.png` : '';
         weatherContent.innerHTML = `
           <div class="weather-status">
             <div>
@@ -768,6 +961,7 @@
               </div>
             </div>
             <div class="status-description">
+              ${iconUrl ? `<img src="${iconUrl}" alt="${now.text || '天气图标'}" loading="lazy" />` : ''}
               <strong>${now.text ?? '未知天气'}</strong>
               <small>更新于：${observedAt}</small>
             </div>
@@ -790,8 +984,18 @@
               <strong>${now.precip ? `${now.precip} mm` : '0 mm'}</strong>
             </div>
           </div>
+          <div class="forecast-section">
+            <div class="forecast-header">
+              <h3>未来天气趋势</h3>
+              <span class="forecast-hint">未来 3-5 天逐日预报</span>
+            </div>
+            <div class="forecast-grid" data-forecast-grid>
+              <div class="placeholder placeholder--compact">正在加载未来天气预报...</div>
+            </div>
+          </div>
         `;
-      };
+        renderForecast(forecast);
+      }
 
       const adviceTypeMap = {
         '1': '运动建议',
@@ -844,6 +1048,95 @@
         }
       };
 
+      const fetchDailyForecast = async (locationId) => {
+        const query = buildQuery({ location: locationId, key: QWEATHER_API_KEY });
+        const url = `${QWEATHER_API_HOST}${WEATHER_DAILY_PATH}?${query}`;
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) throw new Error('预报查询失败');
+          const data = await response.json();
+          if (data.code !== '200') throw new Error(data.message || '接口返回异常');
+          return (data.daily || []).slice(0, 5);
+        } catch (error) {
+          console.warn('使用模拟预报数据，原因：', error.message);
+          return mockForecastResponse.daily;
+        }
+      };
+
+      const updateGeoStatus = (message, { loading = false } = {}) => {
+        if (geoStatus) {
+          geoStatus.textContent = message;
+        }
+        if (geoRequestBtn) {
+          geoRequestBtn.disabled = loading || !isGeoSupported;
+        }
+      };
+
+      const resolveLocationByCoords = async (latitude, longitude) => {
+        const location = `${longitude.toFixed(4)},${latitude.toFixed(4)}`;
+        const query = buildQuery({ location, key: QWEATHER_API_KEY });
+        const url = `${QWEATHER_API_HOST}${CITY_LOOKUP_PATH}?${query}`;
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) throw new Error('定位匹配失败');
+          const data = await response.json();
+          if (data.code !== '200') throw new Error(data.message || '接口返回异常');
+          const [first] = data.location || [];
+          return first || null;
+        } catch (error) {
+          console.warn('通过坐标匹配城市失败，原因：', error.message);
+          return null;
+        }
+      };
+
+      const requestGeolocation = (isManual = false) => {
+        if (!isGeoSupported) {
+          updateGeoStatus('当前浏览器不支持定位功能，请手动输入城市。');
+          return;
+        }
+        updateGeoStatus(isManual ? '正在获取当前位置...' : '正在尝试自动定位...', { loading: true });
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            updateGeoStatus('定位成功，正在匹配城市...', { loading: true });
+            try {
+              const city = await resolveLocationByCoords(latitude, longitude);
+              if (city) {
+                updateGeoStatus(`已定位：${city.name}${city.adm1 ? ` · ${city.adm1}` : ''}`, { loading: false });
+                selectCity(city);
+                cityInput.value = city.name;
+                searchStatus.textContent = `已定位到 ${city.name}，正在获取天气...`;
+                queryWeather();
+              } else {
+                const [fallbackCity] = mockCityResponse.location || [];
+                updateGeoStatus('定位成功，但未匹配到城市，已为你推荐热门城市。', { loading: false });
+                if (fallbackCity) {
+                  selectCity(fallbackCity);
+                  cityInput.value = fallbackCity.name;
+                  searchStatus.textContent = `未匹配到定位城市，展示 ${fallbackCity.name} 天气。`;
+                  queryWeather();
+                }
+              }
+            } catch (error) {
+              console.warn('定位匹配城市时出现异常：', error);
+              updateGeoStatus('定位成功，但匹配城市失败，请手动搜索。', { loading: false });
+            }
+          },
+          (error) => {
+            let message = '定位失败，请手动输入城市。';
+            if (error.code === error.PERMISSION_DENIED) {
+              message = '定位权限被拒绝，可手动点击按钮重新授权。';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              message = '定位信息不可用，请检查定位服务。';
+            } else if (error.code === error.TIMEOUT) {
+              message = '定位超时，请重试或手动输入城市。';
+            }
+            updateGeoStatus(message, { loading: false });
+          },
+          { enableHighAccuracy: false, maximumAge: 300000, timeout: 12000 }
+        );
+      };
+
       const fetchLifeIndices = async (locationId) => {
         const query = buildQuery({ location: locationId, key: QWEATHER_API_KEY, type: '0' });
         const url = `${QWEATHER_API_HOST}${INDICES_PATH}?${query}`;
@@ -867,6 +1160,7 @@
         weatherContent.innerHTML = '<div class="placeholder">加载中，请稍候...</div>';
         lifeAdvice.innerHTML = '<div class="placeholder">正在根据天气生成生活建议...</div>';
 
+        const forecastPromise = fetchDailyForecast(selectedCity.id);
         const query = buildQuery({ location: selectedCity.id, key: QWEATHER_API_KEY });
         const url = `${QWEATHER_API_HOST}${WEATHER_NOW_PATH}?${query}`;
 
@@ -875,12 +1169,14 @@
           if (!response.ok) throw new Error('天气查询失败');
           const data = await response.json();
           if (data.code !== '200') throw new Error(data.message || '接口返回异常');
-          renderWeather(selectedCity, data);
+          const forecastDaily = await forecastPromise;
+          renderWeather(selectedCity, data, forecastDaily);
           weatherUpdate.textContent = `更新于 ${new Date().toLocaleString()}`;
           fetchLifeIndices(selectedCity.id);
         } catch (error) {
           console.warn('使用模拟天气数据，原因：', error.message);
-          renderWeather(selectedCity, mockWeatherResponse);
+          const forecastDaily = await forecastPromise;
+          renderWeather(selectedCity, mockWeatherResponse, forecastDaily.length ? forecastDaily : mockForecastResponse.daily);
           weatherUpdate.textContent = `模拟数据 · ${new Date().toLocaleString()}`;
           fetchLifeIndices(selectedCity.id);
         } finally {
@@ -903,6 +1199,9 @@
 
       cityInput.addEventListener('input', handleInput);
       queryBtn.addEventListener('click', queryWeather);
+      if (geoRequestBtn) {
+        geoRequestBtn.addEventListener('click', () => requestGeolocation(true));
+      }
 
       const init = () => {
         renderHistory();
@@ -911,6 +1210,11 @@
           selectCity(first);
           cityInput.value = first.name;
           queryWeather();
+        }
+        if (isGeoSupported) {
+          requestGeolocation(false);
+        } else {
+          updateGeoStatus('当前浏览器不支持定位功能，请手动输入城市。');
         }
       };
 
